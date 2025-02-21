@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import scrolledtext
 import serial
 import serial.tools.list_ports
 
@@ -11,6 +12,14 @@ def scan_serial_ports():
     ports = serial.tools.list_ports.comports()
     return [port.device for port in ports]
 
+def rescan_ports():
+    serial_ports = scan_serial_ports()
+    serial_dropdown["values"] = serial_ports
+    if serial_ports:
+        serial_var.set(serial_ports[0])  # Set default ke perangkat pertama jika ada
+    else:
+        serial_var.set("No Device")
+        
 # Fungsi untuk menghubungkan ke serial port
 def connect_serial():
     global ser
@@ -69,66 +78,88 @@ def send_selected():
 def read_serial_data():
     if ser and ser.is_open:
         if ser.in_waiting > 0:
-            received_data = ser.read(ser.in_waiting).decode('utf-8', errors='ignore'))
+            received_data = ser.read(ser.in_waiting).decode('utf-8')
             text_status_rx.insert(tk.END, received_data)
-            print(f"Received: {received_data}")
             text_status_rx.see(tk.END)
         # Jadwalkan pembacaan data berikutnya
-        window.after(100, read_serial_data)  # Pembacaan setiap 500ms
+        window.after(500, read_serial_data)  # Pembacaan setiap 500ms
 
 # Membuat window GUI
 window = tk.Tk()
 window.title("Serial Sender")
-window.geometry("510x640")
+window.geometry("540x600")
 style = ttk.Style()
+style.theme_use("clam")
 style.configure(
-    "TButton", padding=10, relief="flat", borderwidth=4, background="#F0F0F0", width=10
+    "Kirim.TButton",
+    padding=10,
+    relief="flat",
+    background="#c0e0c0",
+    focusthickness=3,
+    focuscolor="green",
+    width=10
 )
 style.map(
-    "TButton", background=[("active", "#E3E3E3"), ("pressed", "#D6D6D6")]
+    "Kirim.TButton", background=[("active", "#70e070"), ("pressed", "green")],
+    bordercolor=[("active", "red"), ("pressed", "green")]
+)
+style.configure(
+    "SButton.TButton",
+    padding=1,
+    relief="flat",
+    background="#c0e0c0",
+    focusthickness=3,
+    focuscolor="green",
+    width=10
+)
+style.map(
+    "SButton.TButton", background=[("active", "#70e070"), ("pressed", "green")]
 )
 
 # Label "Pilih Serial Device & Baudrate" di atas kedua frame, rata tengah
 label_serial = tk.Label(window, text="Pilih Serial Device & Baudrate", anchor="center", width=40)
-label_serial.grid(row=0, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+label_serial.grid(row=0, column=0, columnspan=2, padx=2, pady=10, sticky="ew")
 
 # Frame untuk Pilih Serial Device dan Baudrate (pakai grid untuk menempatkan berdampingan)
 frame_serial = tk.Frame(window)
-frame_serial.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+frame_serial.grid(row=1, column=0, padx=2, pady=2, sticky="ew")
 
 serial_ports = scan_serial_ports()
 serial_var = tk.StringVar(window)
 serial_var.set(serial_ports[0] if serial_ports else "No Device")  # Nilai default
 
 serial_dropdown = ttk.Combobox(frame_serial, textvariable=serial_var, values=serial_ports, state="readonly")
-serial_dropdown.pack(side="right", fill='x', expand=True)
+serial_dropdown.pack(side="left", expand=True)
 
 frame_baud = tk.Frame(window)
-frame_baud.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
+frame_baud.grid(row=1, column=1, padx=2, pady=2, sticky="ew")
 
 baudrate_options = ["9600", "19200", "38400", "57600", "115200"]
 baudrate_var = tk.StringVar(window)
 baudrate_var.set(baudrate_options[0])  # Nilai default 9600
 
 baudrate_dropdown = ttk.Combobox(frame_baud, textvariable=baudrate_var, values=baudrate_options, state="readonly")
-baudrate_dropdown.pack(side="right", fill='x', expand=True)
+baudrate_dropdown.pack(side="left", expand=True)
 
-# Tombol untuk menghubungkan serial
-button_connect = ttk.Button(window, text="Connect", style="TButton", command=connect_serial)
-button_connect.grid(row=2, column=0, columnspan=2, pady=20)
+button_rescan = ttk.Button(frame_serial, text="Rescan", style="SButton.TButton", command=rescan_ports)
+button_rescan.pack(side="left", expand=True)
+
+button_connect = ttk.Button(frame_baud, text="Connect", style="SButton.TButton", command=connect_serial)
+button_connect.pack(side="left", expand=True)
 
 # Frame untuk List1 dan List2 di kiri dan kanan
 frame_list1 = tk.Frame(window)
 frame_list1.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
 
-label_list1 = tk.Label(frame_list1, text="Pilih Perintah", anchor="w", width=10)
+label_list1 = tk.Label(frame_list1, text="Pilih Perintah", anchor="w", width=15)
 label_list1.pack(side="top", anchor="w")
 
 list1_options = [
     ("Nyalakan motor", "Null"),
+    ("Autoset Motor", "t"),
+    ("Manualset Motor", "m"),
     ("Nyalakan LED", "led"),
-    ("Buka Kunci", "opn"),
-    ("Test Motor", "t")
+    ("Buka Kunci", "opn")
 ]
 select_var1 = tk.StringVar(window)
 select_var1.set(list1_options[0][1])  # Nilai default 'Null'
@@ -159,7 +190,7 @@ for item in list2_options:
     listbox.insert(tk.END, item)
 
 # Scrollbar dengan lebar yang lebih besar
-scrollbar = tk.Scrollbar(frame_list2, orient="vertical", width=15)  # Menambahkan lebar scrollbar
+scrollbar = tk.Scrollbar(frame_list2, orient="vertical", width=30)  # Menambahkan lebar scrollbar
 scrollbar.pack(side="right", fill="y")
 listbox.pack(side="right", fill='x', expand=True)
 
@@ -168,7 +199,7 @@ listbox.config(yscrollcommand=scrollbar.set)
 scrollbar.config(command=listbox.yview)
 
 # Tombol untuk mengirim karakter dari kedua list
-button_send = ttk.Button(window, text="Kirim", command=send_selected)
+button_send = ttk.Button(window, text="Kirim", style="Kirim.TButton", command=send_selected)
 button_send.grid(row=4, column=0, columnspan=2, pady=10)
 
 # Frame untuk status RX dan TX
@@ -178,13 +209,13 @@ frame_status.grid(row=5, column=0, columnspan=2, padx=10, pady=10, sticky='nsew'
 label_status_rx = tk.Label(frame_status, text="Status RX Serial", anchor="w")
 label_status_rx.grid(row=0, column=0, sticky='w')
 
-label_status_tx = tk.Label(frame_status, text="Status TX Serial", anchor="w")
+label_status_tx = tk.Label(frame_status, text="Status TX Serial", anchor="e")
 label_status_tx.grid(row=0, column=1, sticky='e')
 
-text_status_rx = tk.Text(frame_status, height=10, width=30, state="normal")
+text_status_rx = scrolledtext.ScrolledText(frame_status, wrap="word", height=15, width=30, state="normal")
 text_status_rx.grid(row=1, column=0, sticky='nsew')
 
-text_status_tx = tk.Text(frame_status, height=10, width=30, state="normal")
+text_status_tx = scrolledtext.ScrolledText(frame_status, wrap="word", height=15, width=30, state="normal")
 text_status_tx.grid(row=1, column=1, sticky='nsew')
 
 frame_status.grid_columnconfigure(0, weight=1)
