@@ -2,16 +2,23 @@ from machine import Pin, UART
 import time
 import neopixel
 
-# Pengaturan pinout LED, lock_12v lock, dan suplai tegangan ke sensor IR barang jatuh (VFB)
+# Pengaturan pembacaan serial UART
+uart = UART(1, baudrate=9600, tx=Pin(4), rx=Pin(5))
+# Pengaturan pinout Neopixel, enable pin lock_12v, lock_trigger, enable ir_trigger, & initial state Shift Register
 led_neopixel = Pin(16, Pin.OUT)
 lock_12v = Pin(14, Pin.OUT)
 lock_12v.value(1)
 lock_trigger = Pin(13, Pin.OUT)
 ir_trigger = Pin(10, Pin.OUT)
+SH_CP = Pin(26, Pin.OUT)  # Clock pin
+ST_CP = Pin(15, Pin.OUT)  # Latch pin
+DS = Pin(27, Pin.OUT)     # Data pin
+DS.value(0)
+SH_CP.value(0)
+ST_CP.value(0)
 
-# Define neopixel
+# Pengaturan test Neopixel berawal
 np = neopixel.NeoPixel(led_neopixel, 1)
-
 def set_color(r, g, b):
     np[0] = (r, g, b)
     np.write()
@@ -24,16 +31,9 @@ def led1_on():
     set_color(0, 0, 255)
     time.sleep(1)
     set_color(0, 0, 0)
+# Pengaturan test Neopixel berakhir
 
-# Define pin & initial state Shift Register
-SH_CP = Pin(26, Pin.OUT)  # Clock pin
-ST_CP = Pin(15, Pin.OUT)  # Latch pin
-DS = Pin(27, Pin.OUT)     # Data pin
-DS.value(0)
-SH_CP.value(0)
-ST_CP.value(0)
-
-# Pengaturan IC Register 74HC595
+# Pengaturan IC Register 74HC595 berawal
 def shift_out(value):
     for i in range(8):
         bit = (value >> (7 - i)) & 1
@@ -46,10 +46,19 @@ def write_to_74hc595(values):
     for value in values:
         shift_out(value)
     ST_CP.value(1)
+# Pengaturan kondisi awal motor mati
+motor_state = [0b00000000, 0b00000000]
+def initialize_74hc595():
+    initial_state = [0b00000000, 0b00000000]
+    write_to_74hc595(initial_state)
+initialize_74hc595()
+# Pengaturan durasi motor menyala
+test_duration = 5
+run_duration = 7
+IR_detection = 5
+# Pengaturan IC Register 74HC595 berakhir
 
-uart = UART(1, baudrate=9600, tx=Pin(4), rx=Pin(5))
-
-# Mapping angka ke nilai biner yang sesuai
+# Pengaturan Pembuatan Motor Code berawal
 digit_to_binary = {
     0: 0b10000000,
     1: 0b01000000,
@@ -83,77 +92,129 @@ def calculate_motor_code(baris, kolom):
     reg1 = convert_to_binary(baris)
     reg2 = convert_to_binary(kolom)
     return [reg1, reg2]
+# Pengaturan Pembuatan Motor Code berakhir
 
-# Initialize state
-motor_state = [0b00000000, 0b00000000]
-
-def initialize_74hc595():
-    initial_state = [0b00000000, 0b00000000]
-    write_to_74hc595(initial_state)
-
-initialize_74hc595()
-
-test_duration = 0.1
-run_duration = 6
-interrupt_triggered = False
+# Pengaturan interupt berawal
+# Digunakan untuk menghentikan motor saat mendeteksi Offset Motor (GPIO 0,1,2,3,6,7) atau barang sudah terbaca oleh sensor IR (GPIO 11)
+interrupt_gpio = [0, 1, 2, 3, 6, 7]
+interrupt_gpio_status = {p: False for p in interrupt_gpio}
+interrupt_gpio11 = False
 interrupt_enabled = False
 
-def interrupt_handler(pin):
-    global interrupt_triggered
-    if interrupt_enabled:
-        interrupt_triggered = True
-
-# Set up interrupts on GPIO11
+set_interrupt_gpio = [Pin(p, Pin.IN, Pin.PULL_DOWN) for p in interrupt_gpio]
 gpio11 = Pin(11, Pin.IN, Pin.PULL_DOWN)
-gpio11.irq(trigger=Pin.IRQ_RISING, handler=interrupt_handler)
+
+# Callback untuk GPIO selain GPIO 11
+def make_interrupt_handler(pin_num):
+    def handler(pin):
+        global interrupt_gpio_status
+        if interrupt_enabled:
+            interrupt_gpio_status[pin_num] = True
+            print(f"Interrupt triggered on GPIO {pin_num}")
+    return handler
+
+# Callback untuk GPIO 11
+def interrupt_handler_gpio11(pin):
+    global interrupt_gpio11
+    if interrupt_enabled:
+        interrupt_gpio11 = True
+        print("Interrupt triggered on GPIO 11")
+
+# Daftarkan interrupt untuk setiap GPIO
+interrupt_handlers = {p: make_interrupt_handler(p) for p in interrupt_gpio}
+for p in interrupt_gpio:
+    pin_obj = Pin(p, Pin.IN, Pin.PULL_DOWN)
+    pin_obj.irq(trigger=Pin.IRQ_RISING, handler=interrupt_handlers[p])
+
+# Daftarkan interrupt untuk GPIO 11
+gpio11.irq(trigger=Pin.IRQ_RISING, handler=interrupt_handler_gpio11)
+
+def enable_interrupt_for_bar(baris):
+    global set_interrupt_gpio
+    for pin in set_interrupt_gpio:
+        pin.irq(handler=None)
+    if baris in interrupt_gpio:
+        set_interrupt_gpio[baris].irq(trigger=Pin.IRQ_RISING, handler=make_interrupt_handler(baris))
+        print(f"Interrupt open for GPIO {baris}")
+# Pengaturan interupt berakhir
 
 while True:
     if uart.any():
-        received = uart.read(4)  # Read up to 4 bytes
+        received = uart.read(4)
         if received:
             char = received.decode('utf-8').strip()
             print(f"({char})")
-            uart.write(f"\n({char})=>")
+            uart.write(f"\n({char})=")
             if char == 'led':
                 led1_on()
-                uart.write("tes led status")
+                uart.write("<tes led>")
             elif char == 'opn':
                 lock_12v.value(0)
                 lock_trigger.value(1)
                 time.sleep(3)
                 lock_12v.value(1)
                 lock_trigger.value(0)
-                uart.write("kunci terbuka")
+                uart.write("<kunci terbuka>")
             elif char.startswith('t'):
                 state_key = char[1:]
                 if state_key in motor_code:
                     motor_state = motor_code[state_key]
                     write_to_74hc595(motor_state)
-                    time.sleep(test_duration)
+                    baris = int(state_key[0])
+                    enable_interrupt_for_bar(baris)
+                    time.sleep(0.4)
+                    interrupt_enabled = True                
+                    for _ in range(10):
+                        time.sleep(0.2)
+                        print("test")
+                        if any(interrupt_gpio_status.values()):
+                            uart.write("<Offset [MP Stop]>")
+                            time.sleep(0.4)
+                            break
+                    interrupt_enabled = False
                     motor_state = [0b00000000, 0b00000000]
                     write_to_74hc595(motor_state)
-                    uart.write("test motor")
+                    print(f"Motor Berhenti")
+                    interrupt_gpio_status = {p: False for p in interrupt_gpio}
+                else:
+                    uart.write("salah perintah")
+            elif char.startswith('m'):
+                state_key = char[1:]
+                if state_key in motor_code:
+                    motor_state = motor_code[state_key]
+                    write_to_74hc595(motor_state)
+                    time.sleep(0.05)
+                    uart.write("<set>")
+                    motor_state = [0b00000000, 0b00000000]
+                    write_to_74hc595(motor_state)
                 else:
                     uart.write("salah perintah")
             elif char in motor_code:
                 motor_state = motor_code[char]
                 write_to_74hc595(motor_state)
                 ir_trigger.value(1)
-                time.sleep(0.3)
-                interrupt_enabled = True
-                for _ in range(run_duration):
-                    print("Motor running, second:", _ + 1)
+                time.sleep(0.4)
+                baris = int(state_key[0])
+                enable_interrupt_for_bar(baris)
+                interrupt_enabled = True                    
+                for _ in range(12):
+                    time.sleep(0.2)
+                    print("Running on:", _ + 1)
                     uart.write("<MP>")
-                    if interrupt_triggered:
-                        print("Interrupt triggered!")
-                        uart.write("sensor IR bekerja")
+                    if interrupt_gpio11:
+                        uart.write("<sensor IR bekerja>")
+                        time.sleep(0.4)
+                        break  
+                    elif any(interrupt_gpio_status.values()):
+                        uart.write("<Offset [MP Stop]>")
+                        time.sleep(0.4)
                         break
-                    time.sleep(0.5)
                 interrupt_enabled = False
                 motor_state = [0b00000000, 0b00000000]
                 write_to_74hc595(motor_state)
+                print(f"Motor Berhenti")
                 ir_trigger.value(0)
-                interrupt_triggered = False
+                interrupt_gpio11 = False
+                interrupt_gpio_status = {p: False for p in interrupt_gpio}
             else:
                 uart.write("salah perintah")
-
