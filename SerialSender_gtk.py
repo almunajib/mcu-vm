@@ -2,7 +2,7 @@ import gi
 import serial
 import serial.tools.list_ports
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk, GLib, Gdk
 
 # Variabel global untuk serial
 ser = None
@@ -12,6 +12,14 @@ selected_motor = "Null"  # Inisialisasi nomor motor yang terpilih secara default
 def scan_serial_ports():
     ports = serial.tools.list_ports.comports()
     return [port.device for port in ports]
+    
+def rescan_ports(combo):
+    combo.remove_all()
+    serial_ports = scan_serial_ports()
+    for port in serial_ports:
+        combo.append_text(port)
+    if serial_ports:
+        combo.set_active(0)
 
 # Fungsi untuk menggulir ke bawah pada TextView
 def scroll_to_bottom(text_view):
@@ -100,6 +108,66 @@ def on_motor_selected(listbox, row):
         selected_motor = "Null"  # Jika tidak ada item yang dipilih
         print("Nomor motor terpilih: Null")
 
+# CSS Styling
+css_provider = Gtk.CssProvider()
+css_provider.load_from_data(b"""
+window {
+    background-color: #f5fff5;
+}
+button {
+    background-color: #f5fff5;
+    color: black;
+    min-width: 22px;
+    min-height: 18px;
+    border-radius: 7px;
+    border: 2px solid #a0e0a0;
+}
+button:hover {
+    background-color: #a0e0a0;
+    border-color: darkgreen;
+}
+combobox menu {
+    background-color: #f5fff5;
+    border: 2px solid #a0e0a0;
+}
+combobox menu item {
+    padding: 5px;
+    background-color: #f5fff5;
+    color: black;
+}
+list row:hover {
+    background-color: #f5fff5;
+    color: black;
+}
+list row:selected {
+    background-color: #a0e0a0;
+    color: white;
+    font-weight: bold;
+}
+scrolledwindow {
+    background-color: #f5fff5;
+}
+scrollbar {
+    min-width: 20px;
+    min-height: 20px;
+}
+scrollbar slider {
+    background-color: #f5fff5;
+    border-radius: 5px;
+    min-width: 20px;
+    min-height: 20px;
+}
+scrollbar slider:hover {
+    background-color: #a0e0a0;
+}
+""")
+
+Gtk.StyleContext.add_provider_for_screen(
+    Gdk.Screen.get_default(),
+    css_provider,
+    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+)
+
 # Membuat window GUI menggunakan Gtk
 window = Gtk.Window(title="Serial Sender")
 window.set_size_request(500, 500)
@@ -108,16 +176,16 @@ window.connect("destroy", Gtk.main_quit)
 # Membuat Box Layout utama
 main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
 window.add(main_box)
+label_serial = Gtk.Label(label="Pilih Serial Port & Baudrate")
+main_box.pack_start(label_serial, False, False, 2)
 
 # Box untuk memilih Serial Device dan Baudrate
 select_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
 main_box.pack_start(select_box, False, False, 2)
 
-# Kolom kiri untuk Serial Device
-serial_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-label_serial = Gtk.Label(label="Pilih Serial Device")
-serial_box.pack_start(label_serial, False, False, 2)
 
+# Kolom kiri untuk Serial Device
+serial_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
 serial_ports = scan_serial_ports()
 serial_var = Gtk.ComboBoxText()
 for port in serial_ports:
@@ -126,11 +194,12 @@ serial_var.set_active(0)  # Set default value
 serial_box.pack_start(serial_var, False, False, 1)
 serial_box.set_halign(Gtk.Align.CENTER)
 
-# Kolom kanan untuk Baud Rate
-baud_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-label_baudrate = Gtk.Label(label="Pilih Baud Rate")
-baud_box.pack_start(label_baudrate, False, False, 2)
+button_rescan = Gtk.Button(label="Rescan")
+button_rescan.connect("clicked", lambda x: rescan_ports(serial_combo))
+serial_box.pack_start(button_rescan, False, False, 2)
 
+# Kolom kanan untuk Baud Rate
+baud_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
 baudrate_options = ["9600", "19200", "38400", "57600", "115200"]
 baudrate_var = Gtk.ComboBoxText()
 for option in baudrate_options:
@@ -139,15 +208,15 @@ baudrate_var.set_active(0)  # Set default value
 baud_box.pack_start(baudrate_var, False, False, 2)
 baud_box.set_halign(Gtk.Align.CENTER)
 
+button_connect = Gtk.Button(label="Connect")
+button_connect.connect("clicked", connect_serial)
+baud_box.pack_start(button_connect, False, False, 2)
+button_connect.set_halign(Gtk.Align.CENTER)
+
 # Gabungkan semua ke dalam select_box
 select_box.pack_start(serial_box, True, True, 2)
 select_box.pack_start(baud_box, True, True, 2)
 
-# Tombol untuk menghubungkan serial
-button_connect = Gtk.Button(label="Connect")
-button_connect.connect("clicked", connect_serial)
-main_box.pack_start(button_connect, False, False, 4)
-button_connect.set_halign(Gtk.Align.CENTER)
 
 # Box untuk memilih Perintah dan Nomor Motor
 command_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
@@ -169,9 +238,10 @@ radio_buttons = []
 # List opsi perintah
 list1_options = [
     ("Nyalakan motor", "Null"),
+    ("Autoset Motor", "t"),
+    ("Manualset Motor", "m"),
     ("Nyalakan LED", "led"),
-    ("Buka Kunci", "opn"),
-    ("Test Motor", "t")
+    ("Buka Kunci", "opn")
 ]
 
 # Tambahkan radio button untuk setiap opsi
@@ -194,7 +264,7 @@ nomor_motor_box.pack_start(label_nomor_motor, False, False, 2)
 
 # Pilih Nomor Motor
 list2_options = [
-    "Null", "00", "02", "04", "06", "10", "12", "14", "16", "17", "20", "21", "22", "23", "24", "25", "26", "27",
+    "Null", "00", "02", "04", "06", "10", "12", "14", "15", "16", "17", "20", "21", "22", "23", "24", "25", "26", "27",
     "30", "31", "32", "33", "34", "35", "36", "37", "40", "41", "42", "43", "44", "45", "46", "47", "50", "51", "52", "53", "54", "55", "56", "57"
 ]
 listbox = Gtk.ListBox()
@@ -218,6 +288,7 @@ listbox.connect("row-selected", on_motor_selected)
 # Tombol untuk mengirim karakter dari kedua list
 button_send = Gtk.Button(label="Kirim")
 button_send.connect("clicked", send_selected)
+button_send.set_size_request(100, 40)
 main_box.pack_start(button_send, False, False, 4)
 button_send.set_halign(Gtk.Align.CENTER)
 
