@@ -1,10 +1,11 @@
 from machine import Pin, UART
 import time
 import neopixel
+import onewire, ds18x20
 
 # Pengaturan pembacaan serial UART
 uart = UART(1, baudrate=9600, tx=Pin(4), rx=Pin(5))
-# Pengaturan pinout Neopixel, enable pin lock_12v, lock_trigger, enable ir_trigger, & initial state Shift Register
+# Pengaturan pinout Neopixel, enable pin lock_12v, lock_trigger, enable ir_trigger, Shift Register, & pembacaan suhu
 led_neopixel = Pin(16, Pin.OUT)
 lock_12v = Pin(14, Pin.OUT)
 lock_12v.value(1)
@@ -16,6 +17,8 @@ DS = Pin(27, Pin.OUT)     # Data pin
 DS.value(0)
 SH_CP.value(0)
 ST_CP.value(0)
+ds_pin = machine.Pin(12)
+ds_sensor = ds18x20.DS18X20(onewire.OneWire(ds_pin))
 
 # Pengaturan test Neopixel berawal
 np = neopixel.NeoPixel(led_neopixel, 1)
@@ -155,6 +158,19 @@ while True:
                 lock_12v.value(1)
                 lock_trigger.value(0)
                 uart.write("<kunci terbuka>")
+            elif char == 'suhu':
+                roms = ds_sensor.scan()
+                print('Found DS devices:', roms)
+                ds_sensor.convert_temp()
+                time.sleep_ms(750)  # Tunggu konversi suhu selesai
+                for index, rom in enumerate(roms, start=1):
+                    tempC = ds_sensor.read_temp(rom)
+                    tempF = tempC * (9/5) + 32
+                    suhu_c = "{:.1f}".format(tempC)
+                    suhu_f = "{:.1f}".format(tempF)
+                    output_suhu = f"S{index}: {suhu_c} °C"
+                    print(output_suhu + "\n")
+                    uart.write(output_suhu + "\n")
             elif char.startswith('t'):
                 state_key = char[1:]
                 if state_key in motor_code:
