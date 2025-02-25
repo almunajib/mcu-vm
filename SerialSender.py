@@ -89,12 +89,11 @@ window = tk.Tk()
 window.title("Serial Sender")
 window.geometry("540x600")
 style = ttk.Style()
-style.theme_use("clam")
+style.theme_use("vista")
 style.configure(
     "Kirim.TButton",
     padding=10,
     relief="flat",
-    background="#c0e0c0",
     focusthickness=3,
     focuscolor="green",
     width=10
@@ -107,7 +106,6 @@ style.configure(
     "SButton.TButton",
     padding=1,
     relief="flat",
-    background="#c0e0c0",
     focusthickness=3,
     focuscolor="green",
     width=10
@@ -159,7 +157,8 @@ list1_options = [
     ("Autoset Motor", "t"),
     ("Manualset Motor", "m"),
     ("Nyalakan LED", "led"),
-    ("Buka Kunci", "opn")
+    ("Buka Kunci", "opn"),
+    ("Cek suhu", "suhu")
 ]
 select_var1 = tk.StringVar(window)
 select_var1.set(list1_options[0][1])  # Nilai default 'Null'
@@ -185,7 +184,7 @@ list2_options = [
 ]
 
 # Membuat Listbox dengan scrollbar lebar
-listbox = tk.Listbox(frame_list2, height=6)
+listbox = tk.Listbox(frame_list2, height=9)
 for item in list2_options:
     listbox.insert(tk.END, item)
 
@@ -212,10 +211,10 @@ label_status_rx.grid(row=0, column=0, sticky='w')
 label_status_tx = tk.Label(frame_status, text="Status TX Serial", anchor="e")
 label_status_tx.grid(row=0, column=1, sticky='e')
 
-text_status_rx = scrolledtext.ScrolledText(frame_status, wrap="word", height=15, width=30, state="normal")
+text_status_rx = scrolledtext.ScrolledText(frame_status, wrap="word", height=15, width=40, state="normal")
 text_status_rx.grid(row=1, column=0, sticky='nsew')
 
-text_status_tx = scrolledtext.ScrolledText(frame_status, wrap="word", height=15, width=30, state="normal")
+text_status_tx = scrolledtext.ScrolledText(frame_status, wrap="word", height=15, width=20, state="normal")
 text_status_tx.grid(row=1, column=1, sticky='nsew')
 
 frame_status.grid_columnconfigure(0, weight=1)
