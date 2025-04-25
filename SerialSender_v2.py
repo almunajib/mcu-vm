@@ -46,16 +46,8 @@ def send_selected():
         return
 
     list1_value = select_var1.get()
-    list2_index = listbox.curselection()  # Ambil indeks yang dipilih dari listbox
-    if list2_index:
-        list2_value = listbox.get(list2_index[0])
-        if list2_value == "Null":
-            list2_value = ""  # **Jangan kirim "Null", ubah ke string kosong**
-    else:
-        list2_value = ""  # Jika tidak ada yang dipilih, kosongkan
-
-    # **Gabungkan hanya jika ada nilai**
-    send_value = list1_value if not list2_value else list1_value + list2_value
+    list2_value = select_var_x.get() + select_var_y.get()  # Gabungkan X dan Y axis
+    send_value = list1_value + list2_value
 
     # Jika tidak ada karakter yang dikirim, beri tahu user
     if not send_value:
@@ -72,7 +64,6 @@ def send_selected():
             text_status_tx.insert(tk.END, f"Failed to send data.\nError: {e}\n")
             text_status_tx.see(tk.END)
 
-
 # Fungsi untuk membaca data dari serial
 def read_serial_data():
     if ser and ser.is_open:
@@ -86,7 +77,7 @@ def read_serial_data():
 # Membuat window GUI
 window = tk.Tk()
 window.title("Serial Sender")
-window.geometry("540x600")
+window.geometry("540x540")
 style = ttk.Style()
 style.theme_use("vista")
 style.configure(
@@ -133,7 +124,7 @@ frame_baud.grid(row=1, column=1, padx=2, pady=2, sticky="ew")
 
 baudrate_options = ["9600", "19200", "38400", "57600", "115200"]
 baudrate_var = tk.StringVar(window)
-baudrate_var.set(baudrate_options[1])  # Nilai default 9600
+baudrate_var.set(baudrate_options[4])  # Nilai default BAUDRATE
 
 baudrate_dropdown = ttk.Combobox(frame_baud, textvariable=baudrate_var, values=baudrate_options, state="readonly")
 baudrate_dropdown.pack(side="left", expand=True)
@@ -144,57 +135,107 @@ button_rescan.pack(side="left", expand=True)
 button_connect = ttk.Button(frame_baud, text="Connect", style="SButton.TButton", command=connect_serial)
 button_connect.pack(side="left", expand=True)
 
-# Frame untuk List1 dan List2 di kiri dan kanan
+# Frame untuk List1 (Pilih Perintah) di kiri dan kanan
 frame_list1 = tk.Frame(window)
-frame_list1.grid(row=3, column=0, padx=10, pady=10, sticky="ew")
+frame_list1.grid(row=3, column=0, padx=15, pady=15, sticky="ew")
 
-label_list1 = tk.Label(frame_list1, text="Pilih Perintah", anchor="w", width=15)
-label_list1.pack(side="top", anchor="w")
+label_list1 = tk.Label(frame_list1, text="Pilih Perintah", anchor="center", width=15)
+label_list1.grid(row=0, column=0, columnspan=2, sticky="ew")
 
-list1_options = [
+# Membuat dua kolom dalam frame_list1
+frame_list1_left = tk.Frame(frame_list1)
+frame_list1_left.grid(row=1, column=0, sticky="w")
+
+frame_list1_right = tk.Frame(frame_list1)
+frame_list1_right.grid(row=1, column=1, sticky="w")
+
+# List1 options untuk kolom kiri (Kolom pertama)
+list1_options_left = [
     ("Nyalakan motor", "mp"),
     ("Autoset Motor", "ts"),
     ("Manualset Motor", "m"),
+]
+select_var1 = tk.StringVar(window)
+select_var1.set(list1_options_left[0][1])
+
+for label, value in list1_options_left:
+    radio_button = tk.Radiobutton(frame_list1_left, text=label, variable=select_var1, value=value, padx=0)
+    radio_button.pack(side="top", anchor="w")
+
+# List1 options untuk kolom kanan (Kolom kedua)
+list1_options_right = [
     ("Nyalakan LED", "led"),
     ("Buka Kunci", "open"),
     ("Cek suhu", "suhu")
 ]
-select_var1 = tk.StringVar(window)
-select_var1.set(list1_options[0][1])
 
-for label, value in list1_options:
-    radio_button = tk.Radiobutton(frame_list1, text=label, variable=select_var1, value=value, padx=0)
+for label, value in list1_options_right:
+    radio_button = tk.Radiobutton(frame_list1_right, text=label, variable=select_var1, value=value, padx=0)
     radio_button.pack(side="top", anchor="w")
 
-# Frame untuk List2 (di kanan frame_list1)
+# Frame untuk List2 (Pilih Motor: X axis dan Y axis)
 frame_list2 = tk.Frame(window)
-frame_list2.grid(row=3, column=1, padx=10, pady=10, sticky="ew")
+frame_list2.grid(row=3, column=1, padx=10, pady=15, sticky="ns")
 
-label_list2 = tk.Label(frame_list2, text="Pilih Nomor Motor", anchor="w", width=20)
-label_list2.pack(side="top", anchor="w")
+# Label utama di atas kedua kolom
+label_motor = tk.Label(frame_list2, text="Pilih Motor")
+label_motor.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 5))
 
-list2_options = [
-    "Null", "00", "01", "02", "04", "06",
-    "10", "11", "12", "14", "16", "17",
-    "20", "21", "22", "23", "24", "25", "26", "27",
-    "30", "31", "32", "33", "34", "35", "36", "37",
-    "40", "41", "42", "43", "44", "45", "46", "47",
-    "50", "51", "52", "53", "54", "55", "56", "57",
-]
+# Frame untuk X dan Y
+frame_xy = tk.Frame(frame_list2)
+frame_xy.grid(row=1, column=0, columnspan=2)
 
-# Membuat Listbox dengan scrollbar lebar
-listbox = tk.Listbox(frame_list2, height=9)
-for item in list2_options:
-    listbox.insert(tk.END, item)
+# --- X axis control ---
+label_x = tk.Label(frame_xy, text="Nomer Rak", anchor="n")
+label_x.grid(row=0, column=0, padx=(0, 30), sticky="ew")
 
-# Scrollbar dengan lebar yang lebih besar
-scrollbar = tk.Scrollbar(frame_list2, orient="vertical", width=30)  # Menambahkan lebar scrollbar
-scrollbar.pack(side="right", fill="y")
-listbox.pack(side="right", fill='x', expand=True)
+# Menambahkan "Null" sebagai opsi pertama dalam list2_options
+list2_options = [""] + [str(i) for i in range(10)]
+select_var_x = tk.StringVar(window)
+select_var_x.set("")  # Default ke "Null"
+dropdown_x = ttk.Combobox(frame_xy, textvariable=select_var_x, values=list2_options, state="readonly", width=10)
+dropdown_x.grid(row=1, column=0, padx=(0, 30), pady=2)
 
-# Menghubungkan scrollbar ke listbox
-listbox.config(yscrollcommand=scrollbar.set)
-scrollbar.config(command=listbox.yview)
+# --- Y axis Line Out ---
+label_y = tk.Label(frame_xy, text="Nomer Slot", anchor="n")
+label_y.grid(row=0, column=1, sticky="ew")
+
+select_var_y = tk.StringVar(window)
+select_var_y.set("")  # Default ke "Null"
+dropdown_y = ttk.Combobox(frame_xy, textvariable=select_var_y, values=list2_options, state="readonly", width=10)
+dropdown_y.grid(row=1, column=1, pady=2)
+
+# Label untuk preview hasil gabungan X + Y
+label_preview = tk.Label(frame_list2, text="Preview Motor")
+label_preview.grid(row=2, column=0, columnspan=2, pady=(10, 0))
+
+# Fungsi untuk update label preview secara real-time
+def update_motor_preview(*args):
+    motor_number = select_var_x.get() + select_var_y.get()
+    label_preview.config(text=f"Motor Terpilih: {motor_number}")
+
+# Fungsi untuk update list2_options ketika perintah tertentu dipilih
+def update_list2_options(*args):
+    list1_value = select_var1.get()
+
+    if list1_value in ["led", "open", "suhu"]:
+        select_var_x.set("")
+        select_var_y.set("")
+        dropdown_x['values'] = [""]
+        dropdown_y['values'] = [""]
+    else:
+        select_var_x.set("")
+        select_var_y.set("")
+        dropdown_x['values'] = list2_options
+        dropdown_y['values'] = list2_options
+
+# Setelah membuat select_var_x dan select_var_y, tambahkan trace ini sekali saja
+select_var_x.trace_add("write", update_motor_preview)
+select_var_y.trace_add("write", update_motor_preview)
+
+# Tambahkan juga ini setelah select_var1 dibuat
+select_var1.trace_add("write", update_list2_options)
+
 
 # Tombol untuk mengirim karakter dari kedua list
 button_send = ttk.Button(window, text="Kirim", style="Kirim.TButton", command=send_selected)
@@ -210,24 +251,11 @@ label_status_rx.grid(row=0, column=0, sticky='w')
 label_status_tx = tk.Label(frame_status, text="Status TX Serial", anchor="e")
 label_status_tx.grid(row=0, column=1, sticky='e')
 
-text_status_rx = scrolledtext.ScrolledText(frame_status, wrap="word", height=15, width=40, state="normal")
-text_status_rx.grid(row=1, column=0, sticky='nsew')
+text_status_rx = scrolledtext.ScrolledText(frame_status, height=14, width=30)
+text_status_rx.grid(row=1, column=0, pady=5)
 
-text_status_tx = scrolledtext.ScrolledText(frame_status, wrap="word", height=15, width=20, state="normal")
-text_status_tx.grid(row=1, column=1, sticky='nsew')
+text_status_tx = scrolledtext.ScrolledText(frame_status, height=14, width=30)
+text_status_tx.grid(row=1, column=1, pady=5)
 
-frame_status.grid_columnconfigure(0, weight=1)
-frame_status.grid_columnconfigure(1, weight=1)
-frame_status.grid_rowconfigure(1, weight=1)
-
-# Menjalankan loop GUI
+# Start GUI event loop
 window.mainloop()
-
-# Jangan lupa untuk menutup serial ketika selesai
-try:
-    if ser and ser.is_open:
-        ser.close()
-except NameError:
-    pass
-except serial.SerialException:
-    pass
